@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Telecom call screening role + call-state only; no call log or SMS permissions; READ_CONTACTS optional at runtime -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+    <queries>
+        <intent><action android:name="android.intent.action.SEND" /><data android:mimeType="image/jpeg" /></intent>
+    </queries>
+    <application android:allowBackup="false"
+                 android:usesCleartextTraffic="false"
+                 android:label="방문 전 안내"
+                 android:icon="@android:drawable/ic_dialog_email"
+                 android:theme="@style/AppTheme">
+        <activity android:name=".HistoryActivity" android:exported="false" />
+        <activity android:name=".PreviewActivity" android:exported="false" />
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <service android:name=".OutgoingCallScreeningService"
+                 android:exported="true"
+                 android:permission="android.permission.BIND_SCREENING_SERVICE">
+            <intent-filter>
+                <action android:name="android.telecom.CallScreeningService" />
+            </intent-filter>
+        </service>
+        <receiver android:name=".PhoneStateReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+        <provider android:name=".ImageProvider"
+                  android:authorities="kr.co.namulsan.smartvisit.images"
+                  android:exported="false" android:grantUriPermissions="true" />
+    </application>
+</manifest>
