@@ -7,6 +7,8 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
+import android.net.Uri;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -21,6 +23,7 @@ public final class MainActivity extends Activity {
     private static final int PERMS_PHONE=101;
     private static final int PERMS_NOTIFICATION=102;
     private static final int PERMS_CONTACTS=104;
+    private static final int PERMS_SMS=105;
     private static final int REQUEST_SCREENING_ROLE=103;
     private final int[] hourChoices={1,12,24,48};
     private EditText companyField,nameField;
@@ -76,6 +79,12 @@ public final class MainActivity extends Activity {
         Button permissions=Ui.button(this,"통화 상태 · 알림 권한 허용",false);
         Ui.add(root,permissions,7);
         permissions.setOnClickListener(v->requestPhoneAndNotificationPermissions());
+        Button overlay=Ui.button(this,"통화 종료 팝업 표시 권한 허용",false);
+        Ui.add(root,overlay,7);
+        overlay.setOnClickListener(v->requestOverlayPermission());
+        Button sms=Ui.button(this,"MMS 직접 전송 권한 허용",false);
+        Ui.add(root,sms,7);
+        sms.setOnClickListener(v->requestSmsPermission());
         Button contacts=Ui.button(this,"연락처 저장 번호도 감지 허용 (선택)",false);
         Ui.add(root,contacts,7);
         contacts.setOnClickListener(v->requestContactsPermission());
@@ -84,7 +93,7 @@ public final class MainActivity extends Activity {
         Ui.label(root,"③ 통화 후 안내",22);
         lastCallStatus=Ui.text(this,"최근 통화 안내가 없습니다.",14,false,0xff405777);
         Ui.add(root,lastCallStatus,7);
-        openLast=Ui.button(this,"최근 통화 이미지 확인 · 발송 선택",true);
+        openLast=Ui.button(this,"잠금화면에서 알림으로 남은 통화 확인",false);
         Ui.add(root,openLast,8);
         openLast.setOnClickListener(v->openLastDetected());
         Button history=Ui.button(this,"발송 선택 이력",false);
@@ -95,8 +104,9 @@ public final class MainActivity extends Activity {
             "※ 애니존·기본 전화 앱·연락처에서 직접 통화합니다. 기본 전화 앱을 교체하지 않습니다.\n"+
             "※ 통화 식별 역할 허용이 필요하며, 기기 또는 연락처 저장 여부에 따라 발신번호를 받지 못할 수 있습니다.\n"+
             "※ 실제 통화 연결 여부는 자동 판별하지 않습니다.\n"+
-            "※ 통화 종료 후 알림을 눌러 보내기/취소를 결정합니다.\n"+
-            "※ 실제 MMS 전송은 기본 문자 앱에서 최종 확인합니다.",12,false,0xff6B778C),17);
+            "※ 팝업 표시와 MMS 전송 권한을 허용하면 통화 종료 직후 보내기/취소 팝업을 표시하도록 시도합니다.\n"+
+            "※ 보내기를 선택한 경우 문자 앱을 열지 않고 MMS 직접 전송을 요청합니다. 실기기 통신사 MMS 동작은 아직 검증 전입니다.\n"+
+            "※ 전송 비용과 회사 보안 승인 여부를 확인하고, 반드시 본인 번호로 먼저 시험해 주세요.",12,false,0xff6B778C),17);
         setContentView(Ui.scroll(this,root));
         refreshStatus();
     }
@@ -106,8 +116,21 @@ public final class MainActivity extends Activity {
         if(company.isEmpty()||name.isEmpty()) { toast("소속과 이름을 입력해 주세요.");return; }
         Store.saveProfile(this,company,name,enabledCheck.isChecked(),hourChoices[duplicateSpinner.getSelectedItemPosition()]);
         if(!enabledCheck.isChecked())Store.clearPending(this);
+        if(enabledCheck.isChecked()) {
+            try {CallMonitorService.start(this);} catch(Exception ex) {toast("통화 감시 서비스 시작 실패: "+ex.getMessage());}
+        } else CallMonitorService.stop(this);
         toast("설정을 저장했습니다.");
         refreshStatus();
+    }
+    private void requestOverlayPermission() {
+        if(Settings.canDrawOverlays(this)){toast("화면 위 팝업 권한이 이미 허용되어 있습니다.");return;}
+        Intent i=new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+getPackageName()));
+        startActivity(i);
+    }
+    private void requestSmsPermission() {
+        if(checkSelfPermission(Manifest.permission.SEND_SMS)==PackageManager.PERMISSION_GRANTED){
+            toast("MMS 발송 권한이 이미 허용되어 있습니다.");return;}
+        requestPermissions(new String[]{Manifest.permission.SEND_SMS},PERMS_SMS);
     }
     private void requestCallScreeningRole() {
         if(Build.VERSION.SDK_INT<29) {toast("안드로이드 10 이상이 필요합니다.");return;}
@@ -148,7 +171,9 @@ public final class MainActivity extends Activity {
         roleStatus.setText("통화 식별: "+(role?"허용됨":"허용 필요")
             +"  |  통화 상태: "+(phone?"허용됨":"허용 필요")
             +"  |  알림: "+(notifications?"허용됨":"허용 필요")
-            +"  |  연락처 번호: "+(contacts?"허용됨":"선택 허용"));
+            +"  |  연락처 번호: "+(contacts?"허용됨":"선택 허용")
+            +"  |  팝업: "+(Settings.canDrawOverlays(this)?"허용됨":"허용 필요")
+            +"  |  MMS: "+(checkSelfPermission(Manifest.permission.SEND_SMS)==PackageManager.PERMISSION_GRANTED?"허용됨":"허용 필요"));
         String n=Store.pendingNumber(this);
         if(Store.validNumber(n)) {
             lastCallStatus.setText(Store.ready(this)?

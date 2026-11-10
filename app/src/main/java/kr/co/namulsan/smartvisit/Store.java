@@ -74,7 +74,9 @@ final class Store {
         JSONArray arr=history(c);
         for(int i=0;i<arr.length();i++) {
             JSONObject j=arr.optJSONObject(i);
-            if(j!=null && "사용자 발송 확인".equals(j.optString("status")) &&
+            if(j!=null && ("사용자 발송 확인".equals(j.optString("status"))
+                    ||"MMS 전송 요청".equals(j.optString("status"))
+                    ||"통신사 MMS 전송 성공 응답".equals(j.optString("status"))) &&
                 normalized.equals(j.optString("number")) && j.optLong("when")>=cutoff) return true;
         }
         return false;

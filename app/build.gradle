@@ -6,11 +6,14 @@ android {
         applicationId 'kr.co.namulsan.smartvisit'
         minSdk 29
         targetSdk 34
-        versionCode 3
-        versionName '0.3.0-test'
+        versionCode 4
+        versionName '0.4.0-OVERLAY-MMS-EXPERIMENT'
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
 }
+
+// MMS PDU encoder only; archived upstream, trial use requires careful validation.
+dependencies { implementation 'com.klinkerapps:android-smsmms:5.2.6' }

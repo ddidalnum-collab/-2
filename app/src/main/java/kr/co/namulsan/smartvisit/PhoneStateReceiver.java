@@ -28,7 +28,7 @@ public final class PhoneStateReceiver extends BroadcastReceiver {
         } else if (TelephonyManager.EXTRA_STATE_IDLE.equals(state)
                 && Store.wasOffhook(c) && !Store.ready(c)) {
             Store.setIdleAndReady(c);
-            NotificationHelper.show(c);
+            if(!CallMonitorService.showOnTop(c)) NotificationHelper.show(c);
         }
     }
 }
