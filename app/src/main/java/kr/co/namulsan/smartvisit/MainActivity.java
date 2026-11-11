@@ -9,6 +9,9 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.net.Uri;
+import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.widget.ImageView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -24,6 +27,7 @@ public final class MainActivity extends Activity {
     private static final int PERMS_NOTIFICATION=102;
     private static final int PERMS_CONTACTS=104;
     private static final int PERMS_SMS=105;
+    private static final int REQUEST_PICK_PHOTO=106;
     private static final int REQUEST_SCREENING_ROLE=103;
     private final int[] hourChoices={1,12,24,48};
     private EditText companyField,nameField;
@@ -31,6 +35,8 @@ public final class MainActivity extends Activity {
     private Spinner duplicateSpinner;
     private TextView roleStatus,lastCallStatus;
     private Button openLast;
+    private ImageView profilePhotoView;
+    private TextView profilePhotoStatus;
 
     @Override public void onCreate(Bundle b) {
         super.onCreate(b);
@@ -47,12 +53,41 @@ public final class MainActivity extends Activity {
     private void draw() {
         LinearLayout root=Ui.column(this);
         root.setBackgroundColor(0xffF4F7FC);
-        Ui.add(root,Ui.text(this,"SmartVisit  |  통화 후 고객 안내",23,true,Ui.BLUE),2);
+        Ui.add(root,Ui.text(this,"SmartVisit V4  |  통화 후 고객 안내",23,true,Ui.BLUE),2);
         Ui.add(root,Ui.text(this,"애니존 · 기본 전화 앱 · 연락처에서 평소처럼 전화하세요. 종료 후 안내 이미지 발송 여부를 선택합니다.",14,false,0xff536179),8);
 
         Ui.label(root,"① 최초 1회 외근프로 정보",18);
         companyField=Ui.edit(this,Store.company(this),"소속");Ui.add(root,companyField,7);
         nameField=Ui.edit(this,Store.name(this),"이름 (예: 임성택)");Ui.add(root,nameField,7);
+        Ui.label(root,"외근프로 사진 (선택)",11);
+        Ui.add(root,Ui.text(this,"갤러리에서 사진을 선택하면 고객 안내 이미지의 오른쪽 하단에 소속·이름 왼쪽으로 들어갑니다. 사진은 휴대폰 앱 내부에만 보관됩니다.",12,false,0xff66758F),3);
+        LinearLayout photoRow=new LinearLayout(this);
+        photoRow.setOrientation(LinearLayout.HORIZONTAL);
+        photoRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        profilePhotoView=new ImageView(this);
+        profilePhotoView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        profilePhotoView.setBackground(Ui.bg(Color.WHITE,12,this));
+        photoRow.addView(profilePhotoView,new LinearLayout.LayoutParams(Ui.px(this,80),Ui.px(this,88)));
+        profilePhotoStatus=Ui.text(this,"",13,false,0xff405777);
+        LinearLayout.LayoutParams statusLayout=new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.WRAP_CONTENT,1f);
+        statusLayout.leftMargin=Ui.px(this,12);
+        photoRow.addView(profilePhotoStatus,statusLayout);
+        Ui.add(root,photoRow,7);
+        LinearLayout photoButtons=new LinearLayout(this);
+        photoButtons.setOrientation(LinearLayout.HORIZONTAL);
+        Button selectPhoto=Ui.button(this,"사진 선택 · 변경",false);
+        Button removePhoto=Ui.button(this,"사진 삭제",false);
+        LinearLayout.LayoutParams selectParams=new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.WRAP_CONTENT,1.5f);
+        selectParams.rightMargin=Ui.px(this,7);
+        photoButtons.addView(selectPhoto,selectParams);
+        photoButtons.addView(removePhoto,new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.WRAP_CONTENT,1f));
+        Ui.add(root,photoButtons,8);
+        selectPhoto.setOnClickListener(v->pickPhoto());
+        removePhoto.setOnClickListener(v->{
+            try { ProfilePhoto.delete(this);refreshPhoto();toast("등록한 사진을 삭제했습니다."); }
+            catch(Exception ex) { toast("사진 삭제 실패: "+ex.getMessage()); }
+        });
+        refreshPhoto();
         enabledCheck=new CheckBox(this);
         enabledCheck.setText("통화 종료 후 알림 사용 (ON/OFF)");
         enabledCheck.setTextSize(15);
@@ -69,6 +104,16 @@ public final class MainActivity extends Activity {
         Button save=Ui.button(this,"소속 · 이름 및 설정 저장",true);
         Ui.add(root,save,9);
         save.setOnClickListener(v->saveSettings());
+        Button personalizedPreview=Ui.button(this,"사진 · 소속 · 이름 적용 미리보기",false);
+        Ui.add(root,personalizedPreview,7);
+        personalizedPreview.setOnClickListener(v->{
+            String company=companyField.getText().toString().trim(),name=nameField.getText().toString().trim();
+            if(company.isEmpty()||name.isEmpty()){toast("소속과 이름을 입력해 주세요.");return;}
+            Intent preview=new Intent(this,PersonalizedImagePreviewActivity.class);
+            preview.putExtra("company",company);
+            preview.putExtra("name",name);
+            startActivity(preview);
+        });
 
         Ui.label(root,"② 통화 감지 권한",22);
         roleStatus=Ui.text(this,"권한 상태 확인 중",14,false,Ui.NAVY);
@@ -121,6 +166,25 @@ public final class MainActivity extends Activity {
         } else CallMonitorService.stop(this);
         toast("설정을 저장했습니다.");
         refreshStatus();
+    }
+    private void pickPhoto(){
+        Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("image/*");
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try { startActivityForResult(i,REQUEST_PICK_PHOTO); }
+        catch(Exception ex){ toast("사진을 선택할 앱을 열 수 없습니다: "+ex.getMessage()); }
+    }
+    private void refreshPhoto(){
+        if(profilePhotoView==null)return;
+        Bitmap bitmap=ProfilePhoto.load(this);
+        if(bitmap!=null){
+            profilePhotoView.setImageBitmap(bitmap);
+            profilePhotoStatus.setText("사진 등록됨 · 고객 안내 이미지에 포함");
+        }else{
+            profilePhotoView.setImageResource(android.R.drawable.ic_menu_camera);
+            profilePhotoStatus.setText("사진 미등록 · 소속과 이름만 표시");
+        }
     }
     private void requestOverlayPermission() {
         if(Settings.canDrawOverlays(this)){toast("화면 위 팝업 권한이 이미 허용되어 있습니다.");return;}
@@ -188,6 +252,16 @@ public final class MainActivity extends Activity {
     @Override protected void onResume(){super.onResume();refreshStatus();}
     @Override protected void onActivityResult(int code,int result,Intent data){
         super.onActivityResult(code,result,data);
+        if(code==REQUEST_PICK_PHOTO){
+            if(result==RESULT_OK && data!=null && data.getData()!=null){
+                try {
+                    ProfilePhoto.save(this,data.getData());
+                    refreshPhoto();
+                    toast("사진을 등록했습니다. 미리보기에서 위치를 확인해 주세요.");
+                } catch(Exception ex){ toast("사진 등록 실패: "+ex.getMessage()); }
+            }
+            return;
+        }
         if(code==REQUEST_SCREENING_ROLE){
             refreshStatus();
             toast(screeningAllowed()?"통화 식별 역할이 허용되었습니다.":"통화 식별 역할이 허용되지 않았습니다.");

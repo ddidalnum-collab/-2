@@ -13,7 +13,7 @@ import android.view.*;
 import android.widget.*;
 
 /** User-activated, visibly disclosed foreground call monitoring service.
- *  V3 trial: unlocked device, special draw-over-apps grant required.
+ *  V4 trial: unlocked device, special draw-over-apps grant required.
  *  Never initiates a call or sends without pressing the Send button.
  */
 public final class CallMonitorService extends Service {
@@ -87,7 +87,8 @@ public final class CallMonitorService extends Service {
         Ui.add(root,Ui.text(this,"통화가 종료되었습니다",22,true,Ui.NAVY),0);
         Ui.add(root,Ui.text(this,"방문 전 스마트싱스 안내 이미지를 보낼까요?",16,false,0xff45556A),12);
         Ui.add(root,Ui.text(this,"받는 번호: "+number,18,true,Ui.BLUE),12);
-        String employee=Store.company(this)+"  "+Store.name(this)+" 프로";
+        String n=Store.name(this).trim();
+        String employee=Store.company(this)+"  "+(n.endsWith("프로")?n:n+" 프로")+(ProfilePhoto.exists(this)?"  ·  사진 포함":"");
         Ui.add(root,Ui.text(this,"안내 이미지: "+employee,13,false,0xff56667C),10);
         TextView warning=Ui.text(this,"",13,true,0xffBB3F21);
         Ui.add(root,warning,7);
@@ -120,7 +121,7 @@ public final class CallMonitorService extends Service {
             Math.min(getResources().getDisplayMetrics().widthPixels-Ui.px(this,36),Ui.px(this,420)),
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_SECURE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT);
         lp.gravity=Gravity.CENTER;
         try {wm.addView(root,lp);overlay=root;} catch(Exception ignored) { NotificationHelper.show(this); }
